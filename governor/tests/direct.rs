@@ -163,3 +163,39 @@ fn actual_threadsafety() {
     clock.advance(ms * 998);
     assert_eq!(Ok(()), lim.check());
 }
+
+#[test]
+fn snapshot() {
+    let clock = FakeRelativeClock::default();
+    let lim = RateLimiter::direct_with_clock(Quota::per_second(nonzero!(2u32)), &clock);
+    let s = Duration::from_secs(2);
+
+    assert_eq!(2, lim.snapshot().remaining_burst_capacity(), "initial");
+    assert_eq!(Ok(()), lim.check());
+    assert_eq!(Ok(()), lim.check());
+    let measured_snapshot = lim.check().unwrap_err();
+    assert_eq!(
+        measured_snapshot.quota(),
+        lim.snapshot().quota(),
+        "quotas identical"
+    );
+    assert_eq!(
+        lim.snapshot().remaining_burst_capacity(),
+        0,
+        "after exhausting"
+    );
+
+    clock.advance(s);
+
+    assert_eq!(
+        2,
+        lim.snapshot().remaining_burst_capacity(),
+        "fresh after replenishment"
+    );
+    assert_eq!(Ok(()), lim.check());
+    assert_eq!(
+        1,
+        lim.snapshot().remaining_burst_capacity(),
+        "after 1 measurement after replenish"
+    );
+}

@@ -176,6 +176,34 @@ impl Gcra {
             }
         })
     }
+
+    /// Takes a snapshot of the ratelimiter state at the given key.
+    pub(crate) fn snapshot<K, P: clock::Reference, S: StateStore<Key = K>>(
+        &self,
+        start: P,
+        key: &K,
+        state: &S,
+        t0: P,
+    ) -> StateSnapshot {
+        let t0 = t0.duration_since(start);
+        let tau = self.tau;
+        // we only ever return an Err here, so that the state never
+        // gets updated; but we do get the current state out of the
+        // operation:
+        state
+            .measure_and_replace::<(), _, _>(key, |tat| {
+                let tat = tat.unwrap_or_else(|| self.starting_state(t0));
+                let earliest_time = tat.saturating_sub(tau);
+                if t0 < earliest_time {
+                    dbg!((t0, earliest_time));
+                    // we have no burst capacity left:
+                    Err(StateSnapshot::new(self.t, self.tau, t0, earliest_time))
+                } else {
+                    Err(StateSnapshot::new(self.t, self.tau, t0, t0))
+                }
+            })
+            .unwrap_err()
+    }
 }
 
 #[cfg(test)]

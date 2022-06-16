@@ -11,6 +11,7 @@ use std::hash::Hash;
 use std::num::NonZeroU32;
 use std::prelude::v1::*;
 
+use crate::middleware::StateSnapshot;
 use crate::state::StateStore;
 use crate::{
     clock::{self, Reference},
@@ -124,6 +125,18 @@ where
             &self.state,
             self.clock.now(),
         )
+    }
+
+    /// Take a snapshot of the rate limiting state at key at the current time.
+    ///
+    /// This snapshot does not update, is not protected by any locks
+    /// and should not be used to uphold promises or make
+    /// rate-limiting decisions. It is useful for presenting a user's
+    /// quota back to them without forcing them to consume quota, but
+    /// that's all that it is useful for.
+    pub fn snapshot_key(&self, key: &K) -> StateSnapshot {
+        self.gcra
+            .snapshot(self.start, key, &self.state, self.clock.now())
     }
 }
 

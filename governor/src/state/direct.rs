@@ -9,7 +9,7 @@ use std::num::NonZeroU32;
 
 use crate::{
     clock,
-    middleware::{NoOpMiddleware, RateLimitingMiddleware},
+    middleware::{NoOpMiddleware, RateLimitingMiddleware, StateSnapshot},
     state::InMemoryState,
     NegativeMultiDecision, Quota,
 };
@@ -106,6 +106,18 @@ where
                 &self.state,
                 self.clock.now(),
             )
+    }
+
+    /// Take a snapshot of the rate limiting state at the current time.
+    ///
+    /// This snapshot does not update, is not protected by any locks
+    /// and should not be used to uphold promises or make
+    /// rate-limiting decisions. It is useful for presenting a user's
+    /// quota back to them without forcing them to consume quota, but
+    /// that's all that it is useful for.
+    pub fn snapshot(&self) -> StateSnapshot {
+        self.gcra
+            .snapshot(self.start, &NotKeyed::NonKey, &self.state, self.clock.now())
     }
 }
 
